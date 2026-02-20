@@ -9,4 +9,8 @@ export interface ImportOperationDTO {
     errorMessage?: string | null;
     startedAt?: string | null;
     finishedAt?: string | null;
+    fileObjectKey?: string | null;
+    fileOriginalName?: string | null;
+    fileContentType?: string | null;
+    fileSizeBytes?: number | null;
 }
