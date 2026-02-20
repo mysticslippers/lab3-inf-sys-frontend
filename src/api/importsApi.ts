@@ -32,4 +32,12 @@ export const importsApi = {
         );
         return response.data;
     },
+
+    downloadImportFile: async (operationId: number) => {
+        const response = await http.get<Blob>(
+            `/import/operations/${operationId}/file`,
+            { responseType: 'blob' }
+        );
+        return response;
+    },
 };
