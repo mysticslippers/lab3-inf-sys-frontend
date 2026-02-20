@@ -1,5 +1,7 @@
 import React from 'react';
 import type { ImportOperationDTO } from '../../types/import';
+import { importsApi } from '../../api/importsApi';
+import { toast } from 'react-toastify';
 
 interface Props {
     items: ImportOperationDTO[];
@@ -25,6 +27,49 @@ const ImportHistoryTable: React.FC<Props> = ({ items }) => {
         return d.toLocaleString('ru-RU');
     };
 
+    const formatBytes = (bytes?: number | null) => {
+        if (!bytes || bytes <= 0) return '';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let v = bytes;
+        let i = 0;
+        while (v >= 1024 && i < units.length - 1) {
+            v /= 1024;
+            i += 1;
+        }
+        const fixed = i === 0 ? String(Math.round(v)) : v.toFixed(1);
+        return `${fixed} ${units[i]}`;
+    };
+
+    const downloadFile = async (op: ImportOperationDTO) => {
+        try {
+            const resp = await importsApi.downloadImportFile(op.id);
+
+            const blob = resp.data;
+            const objectUrl = window.URL.createObjectURL(blob);
+
+            const fallbackName = op.fileOriginalName || `import-${op.id}.bin`;
+            const cd = String(resp.headers?.['content-disposition'] ?? '');
+            const match = cd.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+            const filename = match?.[1]
+                ? decodeURIComponent(match[1].replace(/"/g, '').trim())
+                : fallbackName;
+
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            window.URL.revokeObjectURL(objectUrl);
+        } catch (e: any) {
+            const status = e?.response?.status;
+            if (status === 403) toast.error('Нет прав на скачивание этого файла');
+            else if (status === 404) toast.error('Файл не найден');
+            else toast.error('Не удалось скачать файл');
+        }
+    };
+
     return (
         <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
             <table className="min-w-full text-xs sm:text-sm">
@@ -40,6 +85,7 @@ const ImportHistoryTable: React.FC<Props> = ({ items }) => {
                     <th className="px-3 py-2 text-left font-medium">Начато</th>
                     <th className="px-3 py-2 text-left font-medium">Завершено</th>
                     <th className="px-3 py-2 text-left font-medium">Ошибка</th>
+                    <th className="px-3 py-2 text-left font-medium">Файл</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -78,6 +124,20 @@ const ImportHistoryTable: React.FC<Props> = ({ items }) => {
                         <td className="px-3 py-2 align-middle max-w-[260px] truncate">
                             {op.errorMessage ?? '—'}
                         </td>
+
+                        <td className="px-3 py-2 align-middle">
+                            {op.fileObjectKey ? (
+                                <button
+                                    className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-200 hover:bg-slate-800"
+                                    onClick={() => downloadFile(op)}
+                                    title={op.fileOriginalName ?? undefined}
+                                >
+                                    Скачать{op.fileSizeBytes ? ` (${formatBytes(op.fileSizeBytes)})` : ''}
+                                </button>
+                            ) : (
+                                <span className="text-slate-500">—</span>
+                            )}
+                        </td>
                     </tr>
                 ))}
 
@@ -85,7 +145,7 @@ const ImportHistoryTable: React.FC<Props> = ({ items }) => {
                     <tr>
                         <td
                             className="px-3 py-6 text-center text-slate-400"
-                            colSpan={8}
+                            colSpan={9}
                         >
                             Операций импорта пока нет
                         </td>
